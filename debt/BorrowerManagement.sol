@@ -13,7 +13,7 @@ contract BorrowerManagement {
         string phoneNumber;
         string location;
         address walletAddress;
-        uint256[] loanHistory; // loans to be repaid by borrower, storing loan amount
+        uint256[] proposalList; // Storing the list of proposals which borrower has created
         creditTier tier;
     }
 
@@ -26,8 +26,8 @@ contract BorrowerManagement {
 
     // keep track of borrower id
     uint256 public borrowerNum = 0;
-    // initialise empty array of loan history for new borrowers
-    uint256[] emptyHistory;
+    // initialise empty array of proposals which borrower has created
+    uint256[] emptyProposalList;
 
     // check if borrower id is a valid id
     modifier validBorrower(uint256 borrowerId) {
@@ -38,10 +38,10 @@ contract BorrowerManagement {
     // events for each CRUD function
     // show all attributes except password
     event created_borrower(uint256 borrowerId, string name, string email, string phoneNumber, string location, 
-        address walletAddress, uint256[] loanHistory, creditTier tier);
+        address walletAddress, uint256[] proposalList, creditTier tier);
     event retrieved_borrower(uint256 borrowerId);
     event updated_borrower(uint256 borrowerId);
-    event updated_loan_history(uint256 borrowerId, uint256[] newHistory);
+    event updated_proposal_list(uint256 borrowerId, uint256[] newProposalList);
     event deleted_borrower(uint256 borrowerId);
 
     // events for admin functionalities
@@ -61,7 +61,7 @@ contract BorrowerManagement {
             phoneNumber,
             location,
             walletAddress,
-            emptyHistory,
+            emptyProposalList,
             creditTier.bronze
         );
 
@@ -70,7 +70,7 @@ contract BorrowerManagement {
 
         // emit creation event
         emit created_borrower(newBorrower.userId, newBorrower.name, newBorrower.email, newBorrower.phoneNumber, 
-            newBorrower.location, newBorrower.walletAddress, newBorrower.loanHistory, newBorrower.tier);
+            newBorrower.location, newBorrower.walletAddress, newBorrower.proposalList, newBorrower.tier);
     }
 
     // get borrower from list
@@ -83,7 +83,7 @@ contract BorrowerManagement {
         emit retrieved_borrower(b.userId);
 
         // return borrower's details
-        return (b.name, b.email, b.phoneNumber, b.location, b.walletAddress, b.loanHistory, b.tier);
+        return (b.name, b.email, b.phoneNumber, b.location, b.walletAddress, b.proposalList, b.tier);
     }
 
     // update borrower to new attributes
@@ -120,16 +120,16 @@ contract BorrowerManagement {
         emit updated_borrower(b.userId);
     }
 
-    // update borrower to have new loan history
-    function add_loan_history(uint256 borrowerId, uint256 newLoan) public validBorrower(borrowerId) {
+    // update borrower's proposal list
+    function add_proposal(uint256 borrowerId, uint256 proposalId) public validBorrower(borrowerId) {
         // retrieve borrower from list
         borrower storage b = borrowerList[borrowerId];
 
-        // add new loan into borrower's loan history array
-        borrowerList[borrowerId].loanHistory.push(newLoan);
+        // add new proposal into borrower's proposal list array
+        borrowerList[borrowerId].proposalList.push(proposalId);
 
-        // emit loan history updated event
-        emit updated_loan_history(b.userId, b.loanHistory);
+        // emit proposal list updated event
+        emit updated_proposal_list(b.userId, b.proposalList);
     }
 
     // remove borrower from list

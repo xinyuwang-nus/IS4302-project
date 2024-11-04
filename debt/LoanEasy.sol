@@ -55,8 +55,8 @@ contract LoanEasy {
         borrowerContract.update_borrower(borrowerId, name, email, password, phoneNumber, location);
     }
 
-    function add_loan_history(uint256 borrowerId, uint256 newLoan) public {
-        borrowerContract.add_loan_history(borrowerId, newLoan);
+    function add_proposal(uint256 borrowerId, uint256 proposalId) public {
+        borrowerContract.add_proposal(borrowerId, proposalId);
     }
 
     function remove_borrower(uint256 borrowerId) public adminOnly {
@@ -68,10 +68,36 @@ contract LoanEasy {
     }
 
     // CRUD lenders
+    function add_lender(string memory name, string memory email, string memory password, 
+        string memory phoneNumber, string memory location, address walletAddress) public {
+            lenderContract.add_lender(name, email, password, phoneNumber, location, walletAddress);
+    }
+
+    function get_lender(uint256 lenderId) public returns 
+    (string memory, string memory, string memory, string memory, 
+    address, uint256, uint256[] memory) {
+        return lenderContract.get_lender(lenderId);
+    }
+
+    function update_lender(uint256 lenderId, string memory name, string memory email, string memory password,
+    string memory phoneNumber, string memory location) public {
+        address addressOfLender = lenderContract.get_owner(lenderId);
+        require(msg.sender == addressOfLender, "You are not allowed to edit these details");
+        lenderContract.update_lender(lenderId, name, email, password, phoneNumber, location);
+    }
+
+    function delete_lender(uint256 lenderId) public adminOnly() {
+        lenderContract.remove_lender(lenderId);
+    }
+
+    function update_amount_loaned(uint256 amount, uint256 lenderId) public adminOnly() {
+        lenderContract.update_amount_loaned(amount, lenderId);
+    }
 
     // CRUD notes
 
     // CRUD platform stats
 
     // CRUD proposals
+    
 }
