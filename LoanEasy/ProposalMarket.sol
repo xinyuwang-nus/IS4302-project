@@ -272,6 +272,7 @@ contract ProposalMarket {
         }
     }
 
+    // TODO: when the money should be took from the lender's account? When the lender agrees to fund (in fundProposal) or when the borrower accepts the loan?
     // Borrower accepts the loan (if fully funded)
     function acceptLoan(uint256 _proposalId, uint256 _borrowerId) public {
         // Retrieve the borrower details from BorrowerManagement
