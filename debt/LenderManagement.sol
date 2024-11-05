@@ -1,4 +1,5 @@
-pragma solidity ^0.5.0;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
 
 contract LenderManagement {
     // track all lenders on platform
@@ -131,5 +132,4 @@ contract LenderManagement {
     function get_owner(uint256 lenderId) public view validLender(lenderId) returns (address) {
         return lender_list[lenderId].walletAddress;
     }
-
 }

@@ -1,4 +1,5 @@
-pragma solidity ^0.5.0;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
 
 contract BorrowerManagement {
     // track all borrowers on platform
@@ -9,7 +10,7 @@ contract BorrowerManagement {
         uint256 userId;
         string name;
         string email;
-        string password;
+        bytes32 password;
         string phoneNumber;
         string location;
         address walletAddress;
@@ -51,13 +52,31 @@ contract BorrowerManagement {
     function add_borrower(string memory name, string memory email, string memory password, 
         string memory phoneNumber, string memory location, address walletAddress) public {
 
+        // Checks that borrower provided a valid user name
+        require(keccak256(abi.encodePacked(name)) != keccak256(abi.encodePacked("")), "Please enter a non-empty name");
+        
+        // Checks that borrower provided a valid email
+        require(keccak256(abi.encodePacked(email)) != keccak256(abi.encodePacked("")), "Please enter a non-empty email");
+        
+        // Checks that borrower provided a valid password
+        require(keccak256(abi.encodePacked(password)) != keccak256(abi.encodePacked("")), "Please enter a non-empty password");
+        
+        // Checks that borrower provided a valid phone number
+        require(keccak256(abi.encodePacked(phoneNumber)) != keccak256(abi.encodePacked("")), "Please enter a non-empty phone number");
+        
+        // Checks that borrower provided a valid location
+        require(keccak256(abi.encodePacked(location)) != keccak256(abi.encodePacked("")), "Please enter a non-empty location");
+
         uint256 borrowerId = borrowerNum++;
+
+        // Storing hashed password instead of normal password for security purposes
+        bytes32 hashed_password = keccak256(abi.encodePacked(password));
 
         borrower memory newBorrower = borrower(
             borrowerId,
             name,
             email,
-            password,
+            hashed_password,
             phoneNumber,
             location,
             walletAddress,
@@ -163,5 +182,10 @@ contract BorrowerManagement {
     // get wallet address of borrower 
     function get_owner(uint256 borrowerId) public view returns (address) {
         return borrowerList[borrowerId].walletAddress;
+    }
+
+    // get proposal list of borrower
+    function get_borrower_proposal_list(uint256 borrowerId) public view returns (uint256[] memory) {
+        return borrowerList[borrowerId].proposalList;
     }
 }

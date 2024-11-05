@@ -1,4 +1,5 @@
-pragma solidity ^0.5.0;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
 
 import "./BorrowerManagement.sol";
 import "./LenderManagement.sol";
@@ -55,9 +56,9 @@ contract LoanEasy {
         borrowerContract.update_borrower(borrowerId, name, email, password, phoneNumber, location);
     }
 
-    function add_proposal(uint256 borrowerId, uint256 proposalId) public {
+    /* function add_proposal(uint256 borrowerId, uint256 proposalId) public {
         borrowerContract.add_proposal(borrowerId, proposalId);
-    }
+    } */
 
     function remove_borrower(uint256 borrowerId) public adminOnly {
         borrowerContract.remove_borrower(borrowerId);
@@ -67,7 +68,7 @@ contract LoanEasy {
         borrowerContract.edit_borrower_tier(borrowerId, tierNum);
     }
 
-    // CRUD lenders
+    // lender management contract functions
     function add_lender(string memory name, string memory email, string memory password, 
         string memory phoneNumber, string memory location, address walletAddress) public {
             lenderContract.add_lender(name, email, password, phoneNumber, location, walletAddress);
