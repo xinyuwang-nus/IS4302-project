@@ -23,7 +23,7 @@ contract ProposalMarket {
         lenderContract = lenderManagementAddress;
     }
 
-    // Status of a project
+    // status of a proposal
     enum proposalStatus {
         open, // Project is open for lending
         repayment, // Proposal waiting for repayment
@@ -77,11 +77,10 @@ contract ProposalMarket {
         _;
     }
 
-    // add_proposal
+    // add proposal to list of proposals
     function add_proposal(uint256 borrowerId, address borrower, string memory title, 
         string memory description, uint256 fundsRequired, uint256 daysUntilExpiration) public {
         // Ensure valid borrower id is used
-        //require(borrowerContract.get_owner(borrowerId) != borrower, "Invalid borrower id is used for owner address");
         require(borrowerContract.get_owner(borrowerId) == borrower, "Invalid borrower id is used for owner address");
 
         // Ensure input fields are filled and valid
@@ -109,13 +108,14 @@ contract ProposalMarket {
         emit Action(proposalCount++, "Proposal is created", block.timestamp);
     }
 
-    // read_proposal
-    function read_proposal(uint256 proposalId) public validProposalId(proposalId) returns (uint256, address, string memory, string memory,
-        uint256, uint256, uint256, uint256, uint256, proposalStatus) {
+    // get proposal details
+    function read_proposal(uint256 proposalId) public validProposalId(proposalId) returns (uint256, address, 
+        string memory, string memory, uint256, uint256, uint256, uint256, uint256, proposalStatus) {
+            
         proposal memory p = proposalList[proposalId];
 
         emit Action(proposalId, "Proposal is read", block.timestamp);
-        return (p.borrower, p.title, p.description, p.fundsRequired, 
+        return (p.proposalId, p.borrower, p.title, p.description, p.fundsRequired, 
         p.fundsRaised, p.timestamp, p.expiresAt, p.numOfLenders, p.status);
     }
 
@@ -133,7 +133,7 @@ contract ProposalMarket {
         string memory description, uint256 daysUntilExpiration) public validProposalId(proposalId) {
 
         proposal storage p = proposalList[proposalId];
-        
+
         if (keccak256(abi.encodePacked(title)) != keccak256(abi.encodePacked(""))) {
             p.title = title;
         }
@@ -193,7 +193,7 @@ contract ProposalMarket {
     }
 
     // get all proposals
-    function getAllProposals() public view returns (proposal[] memory) {
+    function get_all_proposals() public view returns (proposal[] memory) {
         proposal[] memory activeProposals = new proposal[](proposalCount);
 
         // loop through proposal list mapping and store proposals as an array
@@ -205,7 +205,7 @@ contract ProposalMarket {
     }
 
     // get proposals by a specific borrower ID
-    function getProposalsByBorrower(uint256 borrowerId) public view returns (proposal[] memory) {
+    function get_proposals_by_borrower(uint256 borrowerId) public view returns (proposal[] memory) {
         // get the proposal list of the borrower (in the borrower struct) based on borrowerId
         uint256[] memory borrowerProposalList = borrowerContract.get_borrower_proposal_list(borrowerId);
 
@@ -227,8 +227,7 @@ contract ProposalMarket {
     }
 
     // get an existing proposal by proposal ID
-    function getProposalById(uint256 proposalId) public view returns (proposal memory) {
-        require(proposalId < proposalCount, "Proposal does not exist");
+    function get_proposal_by_id(uint256 proposalId) public view validProposalId(proposalId) returns (proposal memory) {
         return proposalList[proposalId];
     }
 }

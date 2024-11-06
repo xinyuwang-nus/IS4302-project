@@ -93,7 +93,7 @@ contract BorrowerManagement {
     }
 
     // get borrower from list
-    function get_borrower(uint256 borrowerId) public payable validBorrower(borrowerId) returns 
+    function get_borrower(uint256 borrowerId) public validBorrower(borrowerId) returns 
         (string memory, string memory, string memory, string memory, address, uint256[] memory, creditTier) {
         // retrieve borrower from list
         borrower memory b = borrowerList[borrowerId];
@@ -124,7 +124,7 @@ contract BorrowerManagement {
         }
 
         if (keccak256(abi.encodePacked(password)) != emptyStringHash) {
-            b.password = password;
+            b.password = keccak256(abi.encodePacked(password));
         }
 
         if (keccak256(abi.encodePacked(phoneNumber)) != emptyStringHash) {
@@ -152,7 +152,7 @@ contract BorrowerManagement {
     }
 
     // remove borrower from list
-    function remove_borrower(uint256 borrowerId) public validBorrower(borrowerId) {
+    function delete_borrower(uint256 borrowerId) public validBorrower(borrowerId) {
         // remove borrower from mapping
         delete borrowerList[borrowerId];
 
@@ -161,7 +161,7 @@ contract BorrowerManagement {
     }
 
     // admin edit borrower's tier list
-    function edit_borrower_tier(uint256 borrowerId, uint256 tierNum) public validBorrower(borrowerId) {
+    function update_borrower_tier(uint256 borrowerId, uint256 tierNum) public validBorrower(borrowerId) {
         // retrieve borrower from list
         borrower storage b = borrowerList[borrowerId];
         creditTier oldTier = b.tier;
@@ -185,7 +185,7 @@ contract BorrowerManagement {
     }
 
     // get proposal list of borrower
-    function get_borrower_proposal_list(uint256 borrowerId) public view returns (uint256[] memory) {
+    function get_borrower_proposal_list(uint256 borrowerId) public view validBorrower(borrowerId) returns (uint256[] memory) {
         return borrowerList[borrowerId].proposalList;
     }
 }

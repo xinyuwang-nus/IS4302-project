@@ -23,7 +23,7 @@ contract LenderManagement {
     uint256[] emptyNotesIdList;
 
     modifier validLender(uint256 lenderId) {
-        require(lenderId < lenderNum || lenderId >= lenderNum, "Please enter a valid lender id");
+        require(lenderId < lenderNum, "Please enter a valid lender id");
         _;
     }
 
@@ -83,8 +83,7 @@ contract LenderManagement {
 
     // Get Lender
     function get_lender(uint256 lenderId) public validLender(lenderId) returns 
-    (string memory, string memory, string memory, string memory, 
-    address, uint256, uint256[] memory) {
+        (string memory, string memory, string memory, string memory, address, uint256, uint256[] memory) {
 
         lender memory l = lender_list[lenderId];
 
@@ -95,8 +94,10 @@ contract LenderManagement {
 
     // Update Lender
     function update_lender(uint256 lenderId, string memory name, string memory email, string memory password,
-    string memory phoneNumber, string memory location) public validLender(lenderId) {
+        string memory phoneNumber, string memory location) public validLender(lenderId) {
+
         lender storage l = lender_list[lenderId];
+
         if (keccak256(abi.encodePacked(name)) != keccak256(abi.encodePacked(""))) {
             l.name = name;
         }
