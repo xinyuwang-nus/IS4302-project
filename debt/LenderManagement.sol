@@ -15,12 +15,12 @@ contract LenderManagement {
         string location;
         address walletAddress;
         uint256 totalAmountLoaned;
-        uint256[] notesIdList;
+        uint256[] loanIdList;
     }
 
     uint256 private lenderNum = 0;
     // Used for initialising empty array of notes id
-    uint256[] emptyNotesIdList;
+    uint256[] emptyLoanIdList;
 
     modifier validLender(uint256 lenderId) {
         require(lenderId < lenderNum, "Please enter a valid lender id");
@@ -29,10 +29,11 @@ contract LenderManagement {
 
     // Events for each CRUD action
     event addLenderEvent(uint256 lenderId, string name, string email, string phoneNumber, 
-    string location, address walletAddress, uint256 totalAmountLoaned, uint256[] notesId);
+    string location, address walletAddress, uint256 totalAmountLoaned, uint256[] loansList);
     event getLenderEvent(uint256 lenderId);
     event updateLenderEvent(uint256 lenderId);
     event deleteLenderEvent(uint256 lenderId);
+    event updated_loan_list(uint256 lenderId, uint256[] loansList);
 
     // Add lender
     function add_lender(string memory name, string memory email, string memory password, 
@@ -69,14 +70,14 @@ contract LenderManagement {
                 location,
                 walletAddress,
                 0,
-                emptyNotesIdList
+                emptyLoanIdList
                 );
 
             lender_list[lenderId] = newLender;
 
             emit addLenderEvent(newLender.lenderId, newLender.name, newLender.email, 
             newLender.phoneNumber, newLender.location, newLender.walletAddress, 
-            newLender.totalAmountLoaned, newLender.notesIdList);
+            newLender.totalAmountLoaned, newLender.loanIdList);
 
             lenderNum++;
     }
@@ -89,7 +90,7 @@ contract LenderManagement {
 
         emit getLenderEvent(lenderId);
 
-        return (l.name, l.email, l.phoneNumber, l.location, l.walletAddress, l.totalAmountLoaned, l.notesIdList);
+        return (l.name, l.email, l.phoneNumber, l.location, l.walletAddress, l.totalAmountLoaned, l.loanIdList);
     }
 
     // Update Lender
@@ -117,6 +118,25 @@ contract LenderManagement {
         emit updateLenderEvent(lenderId);
     }
 
+    // Update total amount loaned
+    function update_amount_loaned(uint256 amount, uint256 lenderId) public validLender(lenderId) {
+        lender_list[lenderId].totalAmountLoaned = amount;
+    }
+
+    // Update list of loans id
+    // update borrower's proposal list !!!!!!! store proposal id or loan id
+    function add_loan(uint256 lenderId, uint256 proposalId) public validLender(lenderId) {
+        // retrieve lender from list
+        lender storage l = lender_list[lenderId];
+
+        // add new proposal into borrower's proposal list array
+        lender_list[lenderId].loanIdList.push(proposalId);
+
+        // emit proposal list updated event
+        emit updated_loan_list(l.lenderId, l.loanIdList);
+    }
+
+
     // Remove Lender
     function remove_lender(uint256 lenderId) public validLender(lenderId) {
         delete lender_list[lenderId];
@@ -124,13 +144,13 @@ contract LenderManagement {
         emit deleteLenderEvent(lenderId);
     }
 
-    // Update total amount loaned
-    function update_amount_loaned(uint256 amount, uint256 lenderId) public validLender(lenderId) {
-        lender_list[lenderId].totalAmountLoaned = amount;
-    }
-
     // Get wallet address of lender
     function get_owner(uint256 lenderId) public view validLender(lenderId) returns (address) {
         return lender_list[lenderId].walletAddress;
+    }
+
+    // get total loan amount of lender
+    function get_amount_loaned(uint256 lenderId) public view validLender(lenderId) returns (uint256) {
+        return lender_list[lenderId].totalAmountLoaned;
     }
 }

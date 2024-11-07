@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import "./BorrowerManagement.sol";
 import "./LenderManagement.sol";
 import "./ProposalMarket.sol";
-import "./SecondaryMarket.sol";
+//import "./SecondaryMarket.sol";
 
 contract LoanEasy {
     address admin; // keep track of admin account
@@ -13,10 +13,12 @@ contract LoanEasy {
     BorrowerManagement borrowerContract;
     LenderManagement lenderContract;
     ProposalMarket proposalMarketContract;
-    SecondaryMarket secondaryMarketContract;
+    //SecondaryMarket secondaryMarketContract;
 
     constructor(BorrowerManagement borrowerManagementAddress, LenderManagement lenderManagementAddress,
-        ProposalMarket proposalMarketAddress, SecondaryMarket secondaryMarketAddress) {
+        ProposalMarket proposalMarketAddress
+        //, SecondaryMarket secondaryMarketAddress
+        ) {
 
         admin = msg.sender;
 
@@ -134,9 +136,7 @@ contract LoanEasy {
         return proposalMarketContract.get_proposal_by_id(proposalId);
     }
 
-    function read_proposal(uint256 proposalId) public returns (uint256, address, 
-        string memory, string memory, uint256, uint256, uint256, uint256, uint256, ProposalMarket.proposalStatus) {
-
+    function read_proposal(uint256 proposalId) public {
         return proposalMarketContract.read_proposal(proposalId);
     }
 }

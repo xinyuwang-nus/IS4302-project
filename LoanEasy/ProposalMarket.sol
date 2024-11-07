@@ -72,7 +72,7 @@ contract ProposalMarket {
     }
 
     // Add a new proposal
-    function addProposal(
+    /* function addProposal(
         string memory _title,
         string memory _description,
         uint256 _fundsRequired,
@@ -159,7 +159,7 @@ contract ProposalMarket {
     ) public view returns (Proposal memory) {
         require(_id > 0 && _id <= proposalMaxId, "Proposal does not exist");
         return proposals[_id];
-    }
+    } 
 
     function removeProposal(uint256 _proposalId) public {
         Proposal storage proposal = proposals[_proposalId];
@@ -216,10 +216,10 @@ contract ProposalMarket {
         proposal.decisionTime = newDeadline + 2 days;
 
         emit ProposalUpdated(_id, _newTitle, _newDescription, newDeadline);
-    }
+    } */
 
     // Fund a proposal
-    function fundProposal(
+    /* function fundProposal(
         uint256 _proposalId,
         uint256 _lenderId
     ) public payable {
@@ -270,7 +270,7 @@ contract ProposalMarket {
             proposal.isFunded = true;
             emit ProposalCompletelyFunded(_proposalId);
         }
-    }
+    } */
 
     // TODO: when the money should be took from the lender's account? When the lender agrees to fund (in fundProposal) or when the borrower accepts the loan?
     // Borrower accepts the loan (if fully funded)
@@ -393,7 +393,7 @@ contract ProposalMarket {
     }
 
     // Function to refund all lenders if the proposal is expired or declined
-    function refundLenders(uint256 _proposalId) internal {
+    /* function refundLenders(uint256 _proposalId) internal {
         Proposal storage proposal = proposals[_proposalId];
         for (uint256 i = 0; i < proposal.loans.length; i++) {
             Loan storage loan = proposal.loans[i];
@@ -406,7 +406,7 @@ contract ProposalMarket {
             }
         }
         emit FundsReturnedToLenders(_proposalId);
-    }
+    } */
 
     // Repay all loans within a proposal
     function repayAllLoans(uint256 _proposalId) public payable {
@@ -463,7 +463,7 @@ contract ProposalMarket {
     }
 
     // Method to pay a specific loan within a proposal
-    function repayOneLoan(
+    /* function repayOneLoan(
         uint256 _proposalId,
         uint256 _loanIndex
     ) public payable {
@@ -508,7 +508,7 @@ contract ProposalMarket {
         }
 
         emit LoanPaid(_proposalId, _loanIndex, lender.addr, repaymentAmount);
-    }
+    } */
 
     // TODO: Who's in charge of this? Admin? Trigger automatically?
     // Check for default after a 2-month (60 days) grace period and compensate lenders
