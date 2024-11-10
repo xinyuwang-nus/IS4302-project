@@ -3,11 +3,12 @@ pragma solidity ^0.8.0;
 
 import "./BorrowerManagement.sol"; 
 import "./LenderManagement.sol";
+import './Stablecoin/USDT.sol';
 
 contract ProposalMarket {
-
-    uint256 private commissionRate = 500; // Solidity does not support floating point numbers so division by 1000 is used to get 0.5% commision
+    uint256 private commissionRate = 500; // Solidity does not support floating point numbers so division by 10000 is used to get 0.5% commision
     uint256 private interestRate = 1225; // Fixed rate of 12.25% (Will be stored as 1225 and divide by 10000 when computing)
+    uint256 private commissionPoolBalance = 0; // To add when implementing insurance 
 
     uint256 constant acceptancePeriod = 2 days; // time given for borrowers to accept or decline partial loan
     uint256 constant verificationPeriod = 2 days; // time given for lenders to verify before funds get released to borrower
@@ -22,10 +23,13 @@ contract ProposalMarket {
     BorrowerManagement borrowerContract;
     // Lender Management contract
     LenderManagement lenderContract;
+    // USDT Contract
+    USDT usdtContract;
 
-    constructor(BorrowerManagement borrowerManagementAddress, LenderManagement lenderManagementAddress) {
+    constructor(BorrowerManagement borrowerManagementAddress, LenderManagement lenderManagementAddress, USDT usdtAddress) {
         borrowerContract = borrowerManagementAddress;
         lenderContract = lenderManagementAddress;
+        usdtContract = usdtAddress;
     }
 
     // status of a proposal
@@ -50,8 +54,8 @@ contract ProposalMarket {
         address borrower;
         string title;
         string description;
-        // uint256 interest_rate; --> interest rate will always be the same 
-        // uint256 commission; --> commision rate always the same
+        uint256 interest_rate;  
+        uint256 commission;
         uint256 fundsRequired; // funding goal
         uint256 fundsRaised;
         uint256 timestamp; // start time
@@ -61,7 +65,7 @@ contract ProposalMarket {
         proposalStatus status;
         loan[] allLoans; // funds loaned to proposal by lender
         bool goalReached; // proposal goal reached or not reached by deadline
-        bool fundsDistributed; // proposal funds paid out to owner (accept) or refunded (decline)
+        bool fundsDistributed; // true if funds are distributed to borrower or refunded to lender else false
         bool loanRepaid; // proposal successfully repaid or not by owner
 
     }
@@ -70,8 +74,8 @@ contract ProposalMarket {
     struct loan {
         uint256 lender; // Reference to Lender ID in LenderManagement
         uint256 amount; // Loaned amount
-        // uint256 dueDate; // Due date for repayment
-        // bool isRepaid; // Repayment status --> repayment is a 1 time thing
+        uint256 dueDate; // Due date for repayment
+        bool isRepaid; // Repayment status
     }
 
     modifier validProposalId(uint256 proposalId) {
@@ -97,6 +101,8 @@ contract ProposalMarket {
         newProposal.borrower = borrower;
         newProposal.title = title;
         newProposal.description = description;
+        newProposal.interest_rate = interestRate;
+        newProposal.commission = commissionRate;
         newProposal.fundsRequired = fundsRequired;
         newProposal.fundsRaised = 0;
         newProposal.timestamp = block.timestamp;
@@ -149,15 +155,16 @@ contract ProposalMarket {
         proposalList[proposalId].status = proposalStatus.deleted;
         emit ProposalProgress(proposalId, "Proposal is deleted", block.timestamp);
 
-        require(proposalList[proposalId].fundsDistributed == false, "Proposal funds have been refunded.");
+        require(proposalList[proposalId].fundsDistributed == false, "Proposal funds have already been refunded.");
 
         // refund the lenders 
         perform_proposal_refund(proposalId);
     }
 
     // lenders lend funds / loan to selected proposal
-    function lend_to_proposal(uint256 lenderId, uint256 proposalId, address lenderAddress) public payable validProposalId(proposalId) {
-        require(msg.value > 0, "Include the amount of funds you want to loan.");
+    function lend_to_proposal(uint256 lenderId, uint256 proposalId, uint256 amountToLoan, address lenderAddress) public validProposalId(proposalId) {
+        require(amountToLoan > 0, "Please enter a non-zero amount to loan");
+        require(usdtContract.balanceOf(lenderAddress) >= amountToLoan, "Not enough funds in lender's account to loan");
         require(lenderAddress == lenderContract.get_owner(lenderId), "Invalid lender id.");
         proposal storage p = proposalList[proposalId];
 
@@ -165,25 +172,24 @@ contract ProposalMarket {
         require(p.status == proposalStatus.open, "Proposal is no longer opened for funding.");
 
         // lender can loan any amount, return back excess if exceed funding goal
-        if (p.fundsRaised + msg.value >= p.fundsRequired) {
+        if (p.fundsRaised + amountToLoan >= p.fundsRequired) {
             // funding goal is reached
-            // return back excess funds to lender
-            uint256 excess = (p.fundsRaised + msg.value) - p.fundsRequired;
-            (bool success, ) = lenderAddress.call{value: excess}("");
-            require(success, "Excess funds transfer failed");
 
-            // emit event to show lender successfully loaned fund
-            emit LenderAction(lenderId, "Excess funds refunded to lender");
+            // Only transfer required amount to reach funding goal (Excess amount is not transferred)
+            uint256 loanAmount = p.fundsRequired - p.fundsRaised;
+
+            // Transfer required loan amount to proposalMarketContract
+            // Lender must approve proposal market contract to transfer loanAmount to proposal market 
+            usdtContract.transferFrom(lenderAddress, address(this), loanAmount);
 
             // create new loan and add it to proposal's loan list
-            uint256 loanAmount = msg.value - excess;
             createAndStoreLoan(lenderId, loanAmount, p.proposalId);
 
             // emit event to show lender successfully loaned fund
             emit LenderAction(lenderId, "Funds loaned to proposal");
 
             // update proposal details: add money to funds raised, change status to closed, goal reached to true
-            p.fundsRaised = p.fundsRaised + loanAmount;
+            p.fundsRaised += loanAmount;
             p.status = proposalStatus.closed;
             p.goalReached = true;
             p.endDate = block.timestamp;
@@ -198,11 +204,15 @@ contract ProposalMarket {
 
         } else {
             // funding goal not reached
+            // Transfer required loan amount to proposalMarketContract
+            // Lender must approve proposal market contract to transfer loanAmount to proposal market 
+            usdtContract.transferFrom(lenderAddress, address(this), amountToLoan);
+
             // create a new loan and add it to lender's list of loan
-            createAndStoreLoan(lenderId, msg.value, p.proposalId);
+            createAndStoreLoan(lenderId, amountToLoan, p.proposalId);
 
             // update proposal details: add money to funds raised
-            p.fundsRaised = p.fundsRaised + msg.value;
+            p.fundsRaised += amountToLoan;
 
             // emit event to show lender successfully loaned fund
             emit LenderAction(lenderId, "Funds loaned to proposal");
@@ -213,7 +223,8 @@ contract ProposalMarket {
         proposal storage p = proposalList[proposalId];
 
         // create a new loan and add it to lender's list of loan
-        loan memory newLoan = loan(lenderId, amount);
+        // Use 0 as placeholder for due date as it is not set yet
+        loan memory newLoan = loan(lenderId, amount, 0, false);
         p.allLoans.push(newLoan);
 
         // edit lender attributes: total amount loaned and add to loan list
@@ -221,7 +232,6 @@ contract ProposalMarket {
         lenderContract.add_loan(lenderId, p.proposalId);
     }
 
-    // todo
     // pay out funds to borrower (funds accepted by borrower) --> admin only
     function payout_to_borrower(uint256 proposalId) public validProposalId(proposalId) {
         // get the proposal from proposal id
@@ -239,9 +249,23 @@ contract ProposalMarket {
         }
 
         // commision fee deducted, remaining to borrower
+        uint256 commissionToPay = p.fundsRequired * p.commission / 10000;
+        uint256 amountToBorrower = p.fundsRequired - commissionToPay;
+
         // funds distributed true
+        p.fundsDistributed = true;
+
         // status to awaiting repayment
-        // set a 1 year deadline for repayment?
+        p.status = proposalStatus.awaitingRepayment;
+
+        // set a 1 year deadline for repayment
+        loan[] storage proposalLoans = p.allLoans;
+        for (uint256 i = 0; i < proposalLoans.length; i++) {
+            proposalLoans[i].dueDate = block.timestamp + loanPeriod;
+        }
+
+        // transfer from proposal market contract to borrower
+        usdtContract.transfer(p.borrower, amountToBorrower);
     }
 
     // perform refund of proposal funds
@@ -249,8 +273,8 @@ contract ProposalMarket {
         // get the proposal from proposal id
         proposal storage p = proposalList[proposalId];
 
-        // ensure loan easy have enough money --> do we want to do this?
-        require(address(this).balance >= p.fundsRaised, "LoanEasy does not have enough funds, fail to refund lenders.");
+        // ensure loan easy have enough money --> do we want to do this? (Scenario is unlikely unless there is attack)
+        require(usdtContract.balanceOf(address(this)) >= p.fundsRaised, "LoanEasy does not have enough funds, fail to refund lenders.");
 
         // get the list of loans from proposal
         loan[] memory proposalLoans = p.allLoans;
@@ -259,9 +283,7 @@ contract ProposalMarket {
         for (uint256 i = 0; i < proposalLoans.length; i++) {
             loan memory currLoan = proposalLoans[i];
 
-            (bool success, ) = lenderContract.get_owner(currLoan.lender).call{value: currLoan.amount}("");
-            require(success, "Refund transfer failed");
-
+            usdtContract.transfer(lenderContract.get_owner(currLoan.lender), currLoan.amount);
             //lenderContract.update_amount_loaned(get_amount_loaned(lenderId) - currLoan.amount, lenderId);
         }
 
@@ -271,33 +293,67 @@ contract ProposalMarket {
         emit ProposalProgress(proposalId, "Proposal has been refunded", block.timestamp);
     }
 
-    // todo
     // deadline of proposal met and funding goal not reached --> allow choice between accept or decline funds
-    function proposal_deadline_met() public {
+    function proposal_deadline_met(uint256 proposalId, bool isAccepted) public {
+        proposal storage p = proposalList[proposalId];
+
         // check status is open
+        require(p.status == proposalStatus.open, "The proposal must be opened");
+        
         // check for deadline met
-        // provide choice?
+        require(block.timestamp >= p.endDate, "Proposal deadline has not been met yet");
+
         // status to closed
+        p.status = proposalStatus.closed;
+
+        // Case where owner accept partial funds (Must be within 2 days of deadline)
+        if (isAccepted) {
+            accept_partial_funds(proposalId);
+        } 
+        // Case where owner declines partial funds
+        else {
+            decline_partial_funds(proposalId);
+        }
+
     }
 
-    // todo
     // funding goal is not met and borrower decides to accept proposal funds --> payout
-    function accept_partial_funds() public {
+    function accept_partial_funds(uint256 proposalId) public {
+        // get the proposal from proposal id
+        proposal storage p = proposalList[proposalId];
+
         // check status is closed
+        require(p.status == proposalStatus.closed, "Proposal needs to be closed first");
+
         // check funds distributed is false
+        require(p.fundsDistributed == false, "Funds have already been distributed");
+        
         // check is today date is within 2 days (acceptance period) from end date (deadline)
-        // edit acceptance date
+        require((block.timestamp > p.endDate) && (block.timestamp <= (p.endDate + acceptancePeriod)), 
+        "Proposal must be accepted within 2 days of proposal's end date");
+
         // change status to pending verification
+        p.status = proposalStatus.pendingVerification;
+        
+        emit ProposalProgress(proposalId, "Proposal is currently pending verification", block.timestamp);
     }
 
-    // todo
     // funding goal is not met and borrower decides to decline proposal funds --> refund
-    function decline_partial_funds() public {
+    function decline_partial_funds(uint256 proposalId) public {
+        // get the proposal from proposal id
+        proposal storage p = proposalList[proposalId];
         // check status is closed
+        require(p.status == proposalStatus.closed, "Proposal needs to be closed first");
         // check funds distributed is false
-        // check is today date is within 2 days (acceptance period) from end date (deadline) if not auto decline?
+        require(p.fundsDistributed == false, "Funds have already been distributed");
+        
         // refund to lenders
+        perform_proposal_refund(proposalId);
+        
         // status to concluded
+        p.status = proposalStatus.concluded;
+
+        emit ProposalProgress(proposalId, "Proposal has been refunded and concluded", block.timestamp);
     }
 
     // todo

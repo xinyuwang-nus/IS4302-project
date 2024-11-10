@@ -25,7 +25,7 @@ contract LoanEasy {
         borrowerContract = borrowerManagementAddress;
         lenderContract = lenderManagementAddress;
         proposalMarketContract = proposalMarketAddress;
-        secondaryMarketContract = secondaryMarketAddress;
+        // secondaryMarketContract = secondaryMarketAddress;
     }
 
     // ensure function is only callable by the admin 
