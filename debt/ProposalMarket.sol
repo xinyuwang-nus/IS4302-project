@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "./BorrowerManagement.sol"; 
 import "./LenderManagement.sol";
-import './Stablecoin/USDT.sol';
+import "./Stablecoin/USDT.sol";
 
 contract ProposalMarket {
     uint256 private commissionRate = 500; // Solidity does not support floating point numbers so division by 10000 is used to get 0.5% commision
@@ -67,7 +67,6 @@ contract ProposalMarket {
         bool goalReached; // proposal goal reached or not reached by deadline
         bool fundsDistributed; // true if funds are distributed to borrower or refunded to lender else false
         bool loanRepaid; // proposal successfully repaid or not by owner
-
     }
 
     // for owner's repayment
@@ -83,11 +82,37 @@ contract ProposalMarket {
         _;
     }
 
+    modifier validBorrowerId(uint256 borrowerId, address borrowerAddress) {
+        // Ensure valid borrower id is used
+        require(borrowerContract.get_owner(borrowerId) == borrowerAddress, "Invalid borrower id is used for owner address");
+        _;
+    }
+
+    modifier validLoanAmount(uint256 fundingGoal, uint256 borrowerId) {
+        // ensure that funding goal borrower set is within limit (based on credit tier)
+        // get the credit tier of the borrower
+        BorrowerManagement.creditTier borrowerTier = borrowerContract.get_borrower_tier(borrowerId);
+
+        if (borrowerTier == BorrowerManagement.creditTier.gold) {
+            // if credit tier is gold, borrower can list their proposal as max funding limit of 500 stablecoins
+            require(fundingGoal <= 500, "You are only allowed to list your proposal with a maximum funding goal of 500.");
+
+        } else if (borrowerTier == BorrowerManagement.creditTier.silver) {
+            // if credit tier is silver, borrower can list their proposal as max funding limit of 250 stablecoins
+            require(fundingGoal <= 250, "You are only allowed to list your proposal with a maximum funding goal of 250.");
+
+        } else if (borrowerTier == BorrowerManagement.creditTier.bronze) {
+            // if credit tier is bronze, borrower can list their proposal as max funding limit of 100 stablecoins
+            require(fundingGoal <= 100, "You are only allowed to list your proposal with a maximum funding goal of 100.");
+        }
+
+        _;
+    }
+
     // add proposal to list of proposals
     function add_proposal(uint256 borrowerId, address borrower, string memory title, 
-        string memory description, uint256 fundsRequired, uint256 daysUntilExpiration) public {
-        // Ensure valid borrower id is used
-        require(borrowerContract.get_owner(borrowerId) == borrower, "Invalid borrower id is used for owner address");
+        string memory description, uint256 fundsRequired, uint256 daysUntilExpiration) public 
+        validBorrowerId(borrowerId, borrower) validLoanAmount(fundsRequired, borrowerId) {
 
         // Ensure input fields are filled and valid
         require(keccak256(abi.encodePacked(title)) != keccak256(abi.encodePacked("")), "Title cannot be empty");
