@@ -409,7 +409,7 @@ contract ProposalMarket {
     } */
 
     // Repay all loans within a proposal
-    function repayAllLoans(uint256 _proposalId) public payable {
+    /* function repayAllLoans(uint256 _proposalId) public payable {
         Proposal storage proposal = proposals[_proposalId];
         require(proposal.loanAccepted, "Loan not accepted");
 
@@ -460,7 +460,7 @@ contract ProposalMarket {
             require(success, "Repayment transfer failed");
             emit LoanPaid(_id, _loanIndex, lender.addr, repaymentAmount);
         }
-    }
+    } */
 
     // Method to pay a specific loan within a proposal
     /* function repayOneLoan(

@@ -47,6 +47,7 @@ contract ProposalMarket {
     event ProposalDetails(uint256 proposalId, address borrower, string title, string description, uint256 timestamp, uint256 expiresAt, uint256 endDate, uint256 numOfLenders, proposalStatus status);
     event ProposalFundDetails(uint256 fundsRequired, uint256 fundsRaised, loan[] loans, bool goalReached, bool fundsDistributed, bool loanRepaid);
     event LenderAction(uint256 id, string actionType);
+    event RepaymentProcessed(address from, address to, uint256 loanAmount, uint256 repaymentAmount);
 
     // struct of proposal
     struct proposal {
@@ -67,6 +68,7 @@ contract ProposalMarket {
         bool goalReached; // proposal goal reached or not reached by deadline
         bool fundsDistributed; // true if funds are distributed to borrower or refunded to lender else false
         bool loanRepaid; // proposal successfully repaid or not by owner
+        //uint256 unpaidLoanNo; // will affect credit tier
     }
 
     // for owner's repayment
@@ -146,10 +148,7 @@ contract ProposalMarket {
     }
 
     // update proposal details and upload business documents off chain
-    function update_proposal(uint256 proposalId, string memory title, string memory description
-        //, uint256 daysUntilExpiration
-        ) public validProposalId(proposalId) {
-        
+    function update_proposal(uint256 proposalId, string memory title, string memory description) public validProposalId(proposalId) {
         // ensure proposal hasn't been deleted
         require(proposalList[proposalId].status != proposalStatus.deleted, "Proposal has been deleted and cannot be updated.");
 
@@ -161,9 +160,6 @@ contract ProposalMarket {
         if (keccak256(abi.encodePacked(description)) != keccak256(abi.encodePacked(""))) {
             p.description = description;
         }
-        /* if (daysUntilExpiration > 0) {
-            p.expiresAt = block.timestamp + (daysUntilExpiration * 1 days);
-        } */
         
         emit ProposalProgress(proposalId, "Proposal is updated", block.timestamp);
     }
@@ -319,7 +315,7 @@ contract ProposalMarket {
     }
 
     // deadline of proposal met and funding goal not reached --> allow choice between accept or decline funds
-    function proposal_deadline_met(uint256 proposalId, bool isAccepted) public {
+    function proposal_deadline_met(uint256 proposalId, bool isAccepted) public validProposalId(proposalId) {
         proposal storage p = proposalList[proposalId];
 
         // check status is open
@@ -339,11 +335,10 @@ contract ProposalMarket {
         else {
             decline_partial_funds(proposalId);
         }
-
     }
 
     // funding goal is not met and borrower decides to accept proposal funds --> payout
-    function accept_partial_funds(uint256 proposalId) public {
+    function accept_partial_funds(uint256 proposalId) public validProposalId(proposalId) {
         // get the proposal from proposal id
         proposal storage p = proposalList[proposalId];
 
@@ -364,7 +359,7 @@ contract ProposalMarket {
     }
 
     // funding goal is not met and borrower decides to decline proposal funds --> refund
-    function decline_partial_funds(uint256 proposalId) public {
+    function decline_partial_funds(uint256 proposalId) public validProposalId(proposalId) {
         // get the proposal from proposal id
         proposal storage p = proposalList[proposalId];
         // check status is closed
@@ -381,25 +376,63 @@ contract ProposalMarket {
         emit ProposalProgress(proposalId, "Proposal has been refunded and concluded", block.timestamp);
     }
 
-    // todo
-    // borrower repays loan --> proposal concludes
-    function repay_loan() public {
+    // borrower fully repays loan
+    // borrower has to approve proposal market as spender on usdt contract first
+    function repay_loan(uint256 proposalId, address borrowerAddress) public validProposalId(proposalId) {
+        // get the proposal from proposal id
+        proposal storage p = proposalList[proposalId];
+
+        // ensure that borrower has sufficient funds to process repayment
+        uint256 totalRepaymentAmount = p.fundsRaised * (10000 + p.interest_rate) / 10000;
+        require(usdtContract.balanceOf(borrowerAddress) >= totalRepaymentAmount);
+
         // check status is awaiting repayment
+        require(p.status == proposalStatus.awaitingRepayment, "Proposal needs to be awaiting for repayment first");
         // check loan repaid is false
+        require(p.loanRepaid == false);
+
+        // transfer the repayment amount to the proposal market contract
+        usdtContract.transferFrom(borrowerAddress, address(this), totalRepaymentAmount);
+
         // repay loan then set loan repaid to true
-        // status to concluded
+        for(uint256 i = 0; i < p.allLoans.length; i++) {
+            loan storage indivLoan = p.allLoans[i];
+
+            // pay back the loan with interest
+            uint256 repaymentAmount = indivLoan.amount * (10000 + p.interest_rate) / 10000;
+            indivLoan.isRepaid = true;
+
+            // get the lender address and repay loan from borrower to lender
+            address lenderAddress = lenderContract.get_owner(indivLoan.lender);
+            // transfer amount from proposal market contract to lender
+            usdtContract.transfer(lenderAddress, repaymentAmount);
+
+            emit RepaymentProcessed(borrowerAddress, lenderAddress, indivLoan.amount, repaymentAmount);
+        }
+
+        // set status to concluded
+        p.status = proposalStatus.concluded;
+        p.loanRepaid = true;
+        emit ProposalProgress(proposalId, "Proposal has been repayed and concluded", block.timestamp);
     }
 
     // todo
-    // execute insurance repayment and conclude --> did not repay by the set deadline of 1 year
+    // execute insurance repayment and conclude --> did not repay by the set deadline of 1 year + 2 months grace
     // admin only
     function execute_insurance() public {
         // check status is awaiting repayment
         // check for loan deadline + 2 months met
         // check loan repaid is false
         // do insurance payouts
-        // affect credit tier?
         // status to concluded
+    }
+
+    // as long as deadline met then affect credit tier
+    function repayment_deadline_met() public {
+        // check status is awaiting repayment
+        // check for loan deadline exceed
+        // check loan repaid is false
+        // affect credit tier
     }
 
     // get commission rate
