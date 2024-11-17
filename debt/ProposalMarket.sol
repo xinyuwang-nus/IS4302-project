@@ -8,12 +8,12 @@ import "./Stablecoin/USDT.sol";
 contract ProposalMarket {
     uint256 private commissionRate = 500; // Solidity does not support floating point numbers so division by 10000 is used to get 0.5% commision
     uint256 private interestRate = 1225; // Fixed rate of 12.25% (Will be stored as 1225 and divide by 10000 when computing)
-    uint256 private commissionPoolBalance = 0; // To add when implementing insurance 
+    uint256 private commissionPoolBalance = 0; // To add when implementing insurance, taken to comm
 
     uint256 constant acceptancePeriod = 2 days; // time given for borrowers to accept or decline partial loan
     uint256 constant verificationPeriod = 2 days; // time given for lenders to verify before funds get released to borrower
     uint256 constant loanPeriod = 365 days; // time given for borrower to repay their loans
-    uint256 constant insurancePeriod = loanPeriod + 30 days; // time given before lenders get their insurance payout if borrower did not repay
+    uint256 constant insurancePeriod = 60 days; // time given before lenders get their insurance payout if borrower did not repay
 
     // keep track of all proposals
     mapping(uint256 => proposal) proposalList;
@@ -38,6 +38,8 @@ contract ProposalMarket {
         closed, // proposal deadline reached or funding goal reached
         pendingVerification, // proposal waiting for verification by lenders before executing paid out
         awaitingRepayment, // proposal waiting for repayment (after paid out)
+        late, // proposal repayment deadline reached and funds have not been repaid by borrower
+        defaulted, // proposal repayment required insurance from platform
         concluded, // proposal repaid (borrower or insurance) and concluded
         deleted // proposal has been deleted by borrower
     }
@@ -48,6 +50,7 @@ contract ProposalMarket {
     event ProposalFundDetails(uint256 fundsRequired, uint256 fundsRaised, loan[] loans, bool goalReached, bool fundsDistributed, bool loanRepaid);
     event LenderAction(uint256 id, string actionType);
     event RepaymentProcessed(address from, address to, uint256 loanAmount, uint256 repaymentAmount);
+    event InsuranceProcessed(address to, uint256 loanAmount, uint256 insuranceAmount, uint256 coveragePercentage);
 
     // struct of proposal
     struct proposal {
@@ -55,7 +58,7 @@ contract ProposalMarket {
         address borrower;
         string title;
         string description;
-        uint256 interest_rate;  
+        uint256 interest_rate;
         uint256 commission;
         uint256 fundsRequired; // funding goal
         uint256 fundsRaised;
@@ -68,7 +71,6 @@ contract ProposalMarket {
         bool goalReached; // proposal goal reached or not reached by deadline
         bool fundsDistributed; // true if funds are distributed to borrower or refunded to lender else false
         bool loanRepaid; // proposal successfully repaid or not by owner
-        //uint256 unpaidLoanNo; // will affect credit tier
     }
 
     // for owner's repayment
@@ -273,6 +275,9 @@ contract ProposalMarket {
         uint256 commissionToPay = p.fundsRequired * p.commission / 10000;
         uint256 amountToBorrower = p.fundsRequired - commissionToPay;
 
+        // add commission amount to commission pool
+        commissionPoolBalance += commissionToPay;
+
         // funds distributed true
         p.fundsDistributed = true;
 
@@ -416,23 +421,88 @@ contract ProposalMarket {
         emit ProposalProgress(proposalId, "Proposal has been repayed and concluded", block.timestamp);
     }
 
-    // todo
-    // execute insurance repayment and conclude --> did not repay by the set deadline of 1 year + 2 months grace
-    // admin only
-    function execute_insurance() public {
+    // repayment deadline is met without repayment from bottower, credit tier will be affected
+    function repayment_deadline_met(uint256 proposalId) public {
+        // get the proposal from proposal id
+        proposal storage p = proposalList[proposalId];
+
         // check status is awaiting repayment
-        // check for loan deadline + 2 months met
+        require(p.status == proposalStatus.awaitingRepayment);
+        // check for loan deadline exceed
+        require(block.timestamp > p.allLoans[0].dueDate);
         // check loan repaid is false
-        // do insurance payouts
-        // status to concluded
+        require(p.loanRepaid == false);
+
+        // set proposal status to be late
+        p.status = proposalStatus.late;
+        emit ProposalProgress(proposalId, "Proposal is late for repayment, deadline has reached", block.timestamp);
+        // affect credit tier --> done off chain
+        emit ProposalProgress(proposalId, "Proposal is late for repayment, credit tier will be affected", block.timestamp);
     }
 
-    // as long as deadline met then affect credit tier
-    function repayment_deadline_met() public {
-        // check status is awaiting repayment
-        // check for loan deadline exceed
-        // check loan repaid is false
-        // affect credit tier
+    // execute insurance repayment and conclude --> did not repay by the set deadline of 1 year + 2 months grace (admin only)
+    function execute_insurance(uint256 proposalId) public {
+        // get the proposal from proposal id
+        proposal storage p = proposalList[proposalId];
+
+        // check status is late
+        require(p.status == proposalStatus.late);
+        // check for loan deadline + 2 months met
+        require(block.timestamp >= p.allLoans[0].dueDate + insurancePeriod);
+
+        uint256 totalInsurance;
+
+        // calculate the total amount required for insurance payout
+        for(uint256 i = 0; i < p.allLoans.length; i++) {
+            loan storage indivLoan = p.allLoans[i];
+
+            // check insurance amount according to matrix and sum it up
+            uint256 coveragePercentage = calculate_loan_coverage(lenderContract.get_owner(indivLoan.lender));
+            uint256 insuranceAmount = indivLoan.amount * (coveragePercentage / 100);
+            totalInsurance += insuranceAmount;
+        }
+
+        require(commissionPoolBalance >= totalInsurance, "Platform does not have enough funds.");
+
+        // do insurance payouts as a whole
+        for(uint256 i = 0; i < p.allLoans.length; i++) {
+            loan storage indivLoan = p.allLoans[i];
+
+            // get the lender address and repay loan from borrower to lender
+            address lenderAddress = lenderContract.get_owner(indivLoan.lender);
+
+            // check insurance amount according to matrix
+            uint256 coveragePercentage = calculate_loan_coverage(lenderAddress);
+            uint256 insuranceAmount = indivLoan.amount * (coveragePercentage / 100);
+            
+            // transfer insurance amount from proposal market contract to lender
+            usdtContract.transfer(lenderAddress, insuranceAmount);
+            indivLoan.isRepaid = true;
+
+            emit InsuranceProcessed(lenderAddress, indivLoan.amount, insuranceAmount, coveragePercentage);
+        }
+
+        // set proposal status to be deafulted
+        p.status = proposalStatus.defaulted;
+    }
+
+    // todo
+    // helper function for insurance compensation matrix
+    // need nft contract
+    function calculate_loan_coverage(address lender) public returns (uint256) {
+        //uint256 proportion = no. of nfts lender own / total supply
+
+        /* if (proportion >= 50) {
+            return 50;
+        } else if (proportion >= 40) {
+            return 40;
+        } else if (proportion >= 30) {
+            return 30;
+        } else if (proportion >= 20) {
+            return 20;
+        } */
+
+        return 10;
     }
 
     // get commission rate
