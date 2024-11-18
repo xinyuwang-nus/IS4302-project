@@ -49,24 +49,20 @@ contract LoanEasy {
 
     function update_borrower(uint256 borrowerId, string memory name, string memory email, string memory password, 
         string memory phoneNumber, string memory location) public {
-        // get wallet address of owner
-        address walletAddress = borrowerContract.get_owner(borrowerId);
 
+        // get wallet address of owner
+        address borrowerAddress = borrowerContract.get_owner(borrowerId);
         // only allow user to edit their own details
-        require(msg.sender == walletAddress, "You are not allowed to edit these details.");
+        require(msg.sender == borrowerAddress, "You are not allowed to edit these details.");
 
         borrowerContract.update_borrower(borrowerId, name, email, password, phoneNumber, location);
     }
 
-    function update_borrower_tier(uint256 borrowerId, uint256 tierNum) public adminOnly {
+    function update_borrower_tier(uint256 borrowerId, uint256 tierNum) public adminOnly() {
         borrowerContract.update_borrower_tier(borrowerId, tierNum);
     }
 
-    /* function add_proposal(uint256 borrowerId, uint256 proposalId) public {
-        borrowerContract.add_proposal(borrowerId, proposalId);
-    } */
-
-    function delete_borrower(uint256 borrowerId) public adminOnly {
+    function delete_borrower(uint256 borrowerId) public adminOnly() {
         borrowerContract.delete_borrower(borrowerId);
     }
 
@@ -107,12 +103,44 @@ contract LoanEasy {
 
         proposalMarketContract.add_proposal(borrowerId, msg.sender, title, description, fundsRequired, daysUntilExpiration); 
     }
+
+    function update_proposal(uint256 proposalId, string memory title, string memory description) public {
+        proposalMarketContract.update_proposal(proposalId, title, description);
+    }
+
+    function delete_proposal(uint256 proposalId) public {
+        proposalMarketContract.delete_proposal(proposalId, msg.sender);
+    }
+
+    function lend_to_proposal(uint256 lenderId, uint256 proposalId, uint256 amountToLoan) public {
+        proposalMarketContract.lend_to_proposal(lenderId, proposalId, amountToLoan, msg.sender);
+    }
+
+    function payout_to_borrower(uint256 proposalId) public adminOnly() {
+        proposalMarketContract.payout_to_borrower(proposalId);
+    }
+
+    function proposal_deadline_met(uint256 proposalId, bool isAccepted) public {
+        proposalMarketContract.proposal_deadline_met(proposalId, isAccepted);
+    }
+
+    function repay_loan(uint256 proposalId) public {
+        proposalMarketContract.repay_loan(proposalId, msg.sender);
+    }
+
+    function repayment_deadline_met(uint256 proposalId) public adminOnly() {
+        proposalMarketContract.repayment_deadline_met(proposalId);
+    }
+
+    function execute_insurance(uint256 proposalId) public adminOnly() {
+        proposalMarketContract.execute_insurance(proposalId);
+    }
     
     function get_commission() public view returns (uint256) {
         return proposalMarketContract.get_commision();
     }
 
-    function change_commission(uint256 newCommissionRate) public adminOnly {
+    function change_commission(uint256 newCommissionRate) public adminOnly() {
         proposalMarketContract.change_commission(newCommissionRate);
     }
 
@@ -120,7 +148,7 @@ contract LoanEasy {
         return proposalMarketContract.get_interest_rate();
     }
 
-    function change_interest_rate(uint256 newInterestRate) public adminOnly {
+    function change_interest_rate(uint256 newInterestRate) public adminOnly() {
         proposalMarketContract.change_interest_rate(newInterestRate);
     }
 

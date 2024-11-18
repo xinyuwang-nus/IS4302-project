@@ -343,7 +343,7 @@ contract ProposalMarket {
     }
 
     // funding goal is not met and borrower decides to accept proposal funds --> payout
-    function accept_partial_funds(uint256 proposalId) public validProposalId(proposalId) {
+    function accept_partial_funds(uint256 proposalId) internal validProposalId(proposalId) {
         // get the proposal from proposal id
         proposal storage p = proposalList[proposalId];
 
@@ -364,7 +364,7 @@ contract ProposalMarket {
     }
 
     // funding goal is not met and borrower decides to decline proposal funds --> refund
-    function decline_partial_funds(uint256 proposalId) public validProposalId(proposalId) {
+    function decline_partial_funds(uint256 proposalId) internal validProposalId(proposalId) {
         // get the proposal from proposal id
         proposal storage p = proposalList[proposalId];
         // check status is closed
@@ -421,8 +421,8 @@ contract ProposalMarket {
         emit ProposalProgress(proposalId, "Proposal has been repayed and concluded", block.timestamp);
     }
 
-    // repayment deadline is met without repayment from bottower, credit tier will be affected
-    function repayment_deadline_met(uint256 proposalId) public {
+    // repayment deadline is met without repayment from borrower, credit tier will be affected (admin only)
+    function repayment_deadline_met(uint256 proposalId) public validProposalId(proposalId) {
         // get the proposal from proposal id
         proposal storage p = proposalList[proposalId];
 
@@ -436,12 +436,19 @@ contract ProposalMarket {
         // set proposal status to be late
         p.status = proposalStatus.late;
         emit ProposalProgress(proposalId, "Proposal is late for repayment, deadline has reached", block.timestamp);
+
         // affect credit tier --> done off chain
         emit ProposalProgress(proposalId, "Proposal is late for repayment, credit tier will be affected", block.timestamp);
     }
 
+    // todo
+    // to recalculate credit tier when repayment deadline is met and no repayment was made
+    function credit_risk_calculation() internal {
+        //
+    }
+
     // execute insurance repayment and conclude --> did not repay by the set deadline of 1 year + 2 months grace (admin only)
-    function execute_insurance(uint256 proposalId) public {
+    function execute_insurance(uint256 proposalId) public validProposalId(proposalId) {
         // get the proposal from proposal id
         proposal storage p = proposalList[proposalId];
 
@@ -482,6 +489,9 @@ contract ProposalMarket {
             emit InsuranceProcessed(lenderAddress, indivLoan.amount, insuranceAmount, coveragePercentage);
         }
 
+        // update the commission pool balance
+        commissionPoolBalance -= totalInsurance;
+
         // set proposal status to be deafulted
         p.status = proposalStatus.defaulted;
     }
@@ -489,8 +499,8 @@ contract ProposalMarket {
     // todo
     // helper function for insurance compensation matrix
     // need nft contract
-    function calculate_loan_coverage(address lender) public returns (uint256) {
-        //uint256 proportion = no. of nfts lender own / total supply
+    function calculate_loan_coverage(address lender) internal returns (uint256) {
+        //uint256 proportion = no. of nfts lender own / total supply * 100
 
         /* if (proportion >= 50) {
             return 50;
@@ -500,6 +510,8 @@ contract ProposalMarket {
             return 30;
         } else if (proportion >= 20) {
             return 20;
+        } else {
+            return 10;
         } */
 
         return 10;

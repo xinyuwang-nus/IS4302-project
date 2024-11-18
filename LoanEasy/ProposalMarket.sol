@@ -512,7 +512,7 @@ contract ProposalMarket {
 
     // TODO: Who's in charge of this? Admin? Trigger automatically?
     // Check for default after a 2-month (60 days) grace period and compensate lenders
-    function checkDefault(uint256 _id) public {
+    /* function checkDefault(uint256 _id) public {
         Proposal storage proposal = proposals[_id];
 
         for (uint256 i = 0; i < proposal.loans.length; i++) {
@@ -521,16 +521,16 @@ contract ProposalMarket {
                 compensateLender(loan.lender, loan.amount);
             }
         }
-    }
+    } */
 
     // Add funds to the compensation pool
-    function addFundsToCompensationPool() public payable {
+    /* function addFundsToCompensationPool() public payable {
         compensationPoolBalance += msg.value;
-    }
+    } */
 
     // Compensate a lender from the compensation pool
     // TODO: This is just a placeholder for the sake of the compensation example, need to adapt to our insurance rules
-    function compensateLender(uint256 lenderId, uint256 amount) internal {
+    /* function compensateLender(uint256 lenderId, uint256 amount) internal {
         LenderManagement.Lender memory lender = lenderManagement.getLender(
             lenderId
         );
@@ -543,7 +543,7 @@ contract ProposalMarket {
         compensationPoolBalance -= compensationAmount;
         (bool success, ) = lender.addr.call{value: compensationAmount}("");
         require(success, "Compensation transfer failed");
-    }
+    } */
 
     /* function changeCommissionRate(uint256 newRate) public {
         require(newRate >= 0 && newRate <= 100, "Invalid commission rate");
