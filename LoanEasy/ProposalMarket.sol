@@ -274,7 +274,7 @@ contract ProposalMarket {
 
     // TODO: when the money should be took from the lender's account? When the lender agrees to fund (in fundProposal) or when the borrower accepts the loan?
     // Borrower accepts the loan (if fully funded)
-    function acceptLoan(uint256 _proposalId, uint256 _borrowerId) public {
+    /* function acceptLoan(uint256 _proposalId, uint256 _borrowerId) public {
         // Retrieve the borrower details from BorrowerManagement
         BorrowerManagement.Borrower memory borrower = borrowerManagement
             .getBorrower(_borrowerId);
@@ -311,10 +311,10 @@ contract ProposalMarket {
         require(success, "Transfer to borrower failed");
 
         emit ProposalAccepted(_proposalId);
-    }
+    } */
 
     // Function to allow borrower to accept or decline partially funded proposals after the deadline
-    function decidePartialFunding(
+    /* function decidePartialFunding(
         uint256 _proposalId,
         uint256 _borrowerId,
         bool acceptPartialFunding
@@ -341,10 +341,10 @@ contract ProposalMarket {
             proposal.isActive = false;
             emit ProposalDeclined(_proposalId);
         }
-    }
+    } */
 
     // Helper function to validate borrower's decision eligibility
-    function validateBorrowerDecision(
+    /* function validateBorrowerDecision(
         Proposal storage proposal,
         uint256 _borrowerId
     ) internal view {
@@ -365,10 +365,10 @@ contract ProposalMarket {
         );
         require(!proposal.isFunded, "Proposal is already fully funded");
         require(!proposal.loanAccepted, "Loan has already been processed");
-    }
+    } */
 
     // Helper function to process partial acceptance
-    function processPartialAcceptance(
+    /* function processPartialAcceptance(
         Proposal storage proposal,
         uint256 _borrowerId
     ) internal {
@@ -390,7 +390,7 @@ contract ProposalMarket {
         // Transfer funds to the borrower after deducting commission
         (bool success, ) = payable(borrower.addr).call{value: netAmount}("");
         require(success, "Transfer to borrower failed");
-    }
+    } */
 
     // Function to refund all lenders if the proposal is expired or declined
     /* function refundLenders(uint256 _proposalId) internal {
@@ -409,7 +409,7 @@ contract ProposalMarket {
     } */
 
     // Repay all loans within a proposal
-    function repayAllLoans(uint256 _proposalId) public payable {
+    /* function repayAllLoans(uint256 _proposalId) public payable {
         Proposal storage proposal = proposals[_proposalId];
         require(proposal.loanAccepted, "Loan not accepted");
 
@@ -460,7 +460,7 @@ contract ProposalMarket {
             require(success, "Repayment transfer failed");
             emit LoanPaid(_id, _loanIndex, lender.addr, repaymentAmount);
         }
-    }
+    } */
 
     // Method to pay a specific loan within a proposal
     /* function repayOneLoan(
@@ -545,7 +545,7 @@ contract ProposalMarket {
         require(success, "Compensation transfer failed");
     }
 
-    function changeCommissionRate(uint256 newRate) public {
+    /* function changeCommissionRate(uint256 newRate) public {
         require(newRate >= 0 && newRate <= 100, "Invalid commission rate");
         commissionRate = newRate;
     }
@@ -554,5 +554,5 @@ contract ProposalMarket {
         uint256 amount
     ) internal view returns (uint256) {
         return (amount * commissionRate) / 100;
-    }
+    } */
 }

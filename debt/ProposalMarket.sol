@@ -3,17 +3,17 @@ pragma solidity ^0.8.0;
 
 import "./BorrowerManagement.sol"; 
 import "./LenderManagement.sol";
-import './Stablecoin/USDT.sol';
+import "./Stablecoin/USDT.sol";
 
 contract ProposalMarket {
     uint256 private commissionRate = 500; // Solidity does not support floating point numbers so division by 10000 is used to get 0.5% commision
     uint256 private interestRate = 1225; // Fixed rate of 12.25% (Will be stored as 1225 and divide by 10000 when computing)
-    uint256 private commissionPoolBalance = 0; // To add when implementing insurance 
+    uint256 private commissionPoolBalance = 0; // To add when implementing insurance, taken to comm
 
     uint256 constant acceptancePeriod = 2 days; // time given for borrowers to accept or decline partial loan
     uint256 constant verificationPeriod = 2 days; // time given for lenders to verify before funds get released to borrower
     uint256 constant loanPeriod = 365 days; // time given for borrower to repay their loans
-    uint256 constant insurancePeriod = loanPeriod + 30 days; // time given before lenders get their insurance payout if borrower did not repay
+    uint256 constant insurancePeriod = 60 days; // time given before lenders get their insurance payout if borrower did not repay
 
     // keep track of all proposals
     mapping(uint256 => proposal) proposalList;
@@ -38,6 +38,8 @@ contract ProposalMarket {
         closed, // proposal deadline reached or funding goal reached
         pendingVerification, // proposal waiting for verification by lenders before executing paid out
         awaitingRepayment, // proposal waiting for repayment (after paid out)
+        late, // proposal repayment deadline reached and funds have not been repaid by borrower
+        defaulted, // proposal repayment required insurance from platform
         concluded, // proposal repaid (borrower or insurance) and concluded
         deleted // proposal has been deleted by borrower
     }
@@ -47,6 +49,8 @@ contract ProposalMarket {
     event ProposalDetails(uint256 proposalId, address borrower, string title, string description, uint256 timestamp, uint256 expiresAt, uint256 endDate, uint256 numOfLenders, proposalStatus status);
     event ProposalFundDetails(uint256 fundsRequired, uint256 fundsRaised, loan[] loans, bool goalReached, bool fundsDistributed, bool loanRepaid);
     event LenderAction(uint256 id, string actionType);
+    event RepaymentProcessed(address from, address to, uint256 loanAmount, uint256 repaymentAmount);
+    event InsuranceProcessed(address to, uint256 loanAmount, uint256 insuranceAmount, uint256 coveragePercentage);
 
     // struct of proposal
     struct proposal {
@@ -54,7 +58,7 @@ contract ProposalMarket {
         address borrower;
         string title;
         string description;
-        uint256 interest_rate;  
+        uint256 interest_rate;
         uint256 commission;
         uint256 fundsRequired; // funding goal
         uint256 fundsRaised;
@@ -67,7 +71,6 @@ contract ProposalMarket {
         bool goalReached; // proposal goal reached or not reached by deadline
         bool fundsDistributed; // true if funds are distributed to borrower or refunded to lender else false
         bool loanRepaid; // proposal successfully repaid or not by owner
-
     }
 
     // for owner's repayment
@@ -83,11 +86,37 @@ contract ProposalMarket {
         _;
     }
 
+    modifier validBorrowerId(uint256 borrowerId, address borrowerAddress) {
+        // Ensure valid borrower id is used
+        require(borrowerContract.get_owner(borrowerId) == borrowerAddress, "Invalid borrower id is used for owner address");
+        _;
+    }
+
+    modifier validLoanAmount(uint256 fundingGoal, uint256 borrowerId) {
+        // ensure that funding goal borrower set is within limit (based on credit tier)
+        // get the credit tier of the borrower
+        BorrowerManagement.creditTier borrowerTier = borrowerContract.get_borrower_tier(borrowerId);
+
+        if (borrowerTier == BorrowerManagement.creditTier.gold) {
+            // if credit tier is gold, borrower can list their proposal as max funding limit of 500 stablecoins
+            require(fundingGoal <= 500, "You are only allowed to list your proposal with a maximum funding goal of 500.");
+
+        } else if (borrowerTier == BorrowerManagement.creditTier.silver) {
+            // if credit tier is silver, borrower can list their proposal as max funding limit of 250 stablecoins
+            require(fundingGoal <= 250, "You are only allowed to list your proposal with a maximum funding goal of 250.");
+
+        } else if (borrowerTier == BorrowerManagement.creditTier.bronze) {
+            // if credit tier is bronze, borrower can list their proposal as max funding limit of 100 stablecoins
+            require(fundingGoal <= 100, "You are only allowed to list your proposal with a maximum funding goal of 100.");
+        }
+
+        _;
+    }
+
     // add proposal to list of proposals
     function add_proposal(uint256 borrowerId, address borrower, string memory title, 
-        string memory description, uint256 fundsRequired, uint256 daysUntilExpiration) public {
-        // Ensure valid borrower id is used
-        require(borrowerContract.get_owner(borrowerId) == borrower, "Invalid borrower id is used for owner address");
+        string memory description, uint256 fundsRequired, uint256 daysUntilExpiration) public 
+        validBorrowerId(borrowerId, borrower) validLoanAmount(fundsRequired, borrowerId) {
 
         // Ensure input fields are filled and valid
         require(keccak256(abi.encodePacked(title)) != keccak256(abi.encodePacked("")), "Title cannot be empty");
@@ -121,10 +150,7 @@ contract ProposalMarket {
     }
 
     // update proposal details and upload business documents off chain
-    function update_proposal(uint256 proposalId, string memory title, string memory description
-        //, uint256 daysUntilExpiration
-        ) public validProposalId(proposalId) {
-        
+    function update_proposal(uint256 proposalId, string memory title, string memory description) public validProposalId(proposalId) {
         // ensure proposal hasn't been deleted
         require(proposalList[proposalId].status != proposalStatus.deleted, "Proposal has been deleted and cannot be updated.");
 
@@ -136,9 +162,6 @@ contract ProposalMarket {
         if (keccak256(abi.encodePacked(description)) != keccak256(abi.encodePacked(""))) {
             p.description = description;
         }
-        /* if (daysUntilExpiration > 0) {
-            p.expiresAt = block.timestamp + (daysUntilExpiration * 1 days);
-        } */
         
         emit ProposalProgress(proposalId, "Proposal is updated", block.timestamp);
     }
@@ -252,6 +275,9 @@ contract ProposalMarket {
         uint256 commissionToPay = p.fundsRequired * p.commission / 10000;
         uint256 amountToBorrower = p.fundsRequired - commissionToPay;
 
+        // add commission amount to commission pool
+        commissionPoolBalance += commissionToPay;
+
         // funds distributed true
         p.fundsDistributed = true;
 
@@ -294,7 +320,7 @@ contract ProposalMarket {
     }
 
     // deadline of proposal met and funding goal not reached --> allow choice between accept or decline funds
-    function proposal_deadline_met(uint256 proposalId, bool isAccepted) public {
+    function proposal_deadline_met(uint256 proposalId, bool isAccepted) public validProposalId(proposalId) {
         proposal storage p = proposalList[proposalId];
 
         // check status is open
@@ -314,11 +340,10 @@ contract ProposalMarket {
         else {
             decline_partial_funds(proposalId);
         }
-
     }
 
     // funding goal is not met and borrower decides to accept proposal funds --> payout
-    function accept_partial_funds(uint256 proposalId) public {
+    function accept_partial_funds(uint256 proposalId) public validProposalId(proposalId) {
         // get the proposal from proposal id
         proposal storage p = proposalList[proposalId];
 
@@ -339,7 +364,7 @@ contract ProposalMarket {
     }
 
     // funding goal is not met and borrower decides to decline proposal funds --> refund
-    function decline_partial_funds(uint256 proposalId) public {
+    function decline_partial_funds(uint256 proposalId) public validProposalId(proposalId) {
         // get the proposal from proposal id
         proposal storage p = proposalList[proposalId];
         // check status is closed
@@ -356,25 +381,128 @@ contract ProposalMarket {
         emit ProposalProgress(proposalId, "Proposal has been refunded and concluded", block.timestamp);
     }
 
-    // todo
-    // borrower repays loan --> proposal concludes
-    function repay_loan() public {
+    // borrower fully repays loan
+    // borrower has to approve proposal market as spender on usdt contract first
+    function repay_loan(uint256 proposalId, address borrowerAddress) public validProposalId(proposalId) {
+        // get the proposal from proposal id
+        proposal storage p = proposalList[proposalId];
+
+        // ensure that borrower has sufficient funds to process repayment
+        uint256 totalRepaymentAmount = p.fundsRaised * (10000 + p.interest_rate) / 10000;
+        require(usdtContract.balanceOf(borrowerAddress) >= totalRepaymentAmount);
+
         // check status is awaiting repayment
+        require(p.status == proposalStatus.awaitingRepayment, "Proposal needs to be awaiting for repayment first");
         // check loan repaid is false
+        require(p.loanRepaid == false);
+
+        // transfer the repayment amount to the proposal market contract
+        usdtContract.transferFrom(borrowerAddress, address(this), totalRepaymentAmount);
+
         // repay loan then set loan repaid to true
-        // status to concluded
+        for(uint256 i = 0; i < p.allLoans.length; i++) {
+            loan storage indivLoan = p.allLoans[i];
+
+            // pay back the loan with interest
+            uint256 repaymentAmount = indivLoan.amount * (10000 + p.interest_rate) / 10000;
+            indivLoan.isRepaid = true;
+
+            // get the lender address and repay loan from borrower to lender
+            address lenderAddress = lenderContract.get_owner(indivLoan.lender);
+            // transfer amount from proposal market contract to lender
+            usdtContract.transfer(lenderAddress, repaymentAmount);
+
+            emit RepaymentProcessed(borrowerAddress, lenderAddress, indivLoan.amount, repaymentAmount);
+        }
+
+        // set status to concluded
+        p.status = proposalStatus.concluded;
+        p.loanRepaid = true;
+        emit ProposalProgress(proposalId, "Proposal has been repayed and concluded", block.timestamp);
+    }
+
+    // repayment deadline is met without repayment from bottower, credit tier will be affected
+    function repayment_deadline_met(uint256 proposalId) public {
+        // get the proposal from proposal id
+        proposal storage p = proposalList[proposalId];
+
+        // check status is awaiting repayment
+        require(p.status == proposalStatus.awaitingRepayment);
+        // check for loan deadline exceed
+        require(block.timestamp > p.allLoans[0].dueDate);
+        // check loan repaid is false
+        require(p.loanRepaid == false);
+
+        // set proposal status to be late
+        p.status = proposalStatus.late;
+        emit ProposalProgress(proposalId, "Proposal is late for repayment, deadline has reached", block.timestamp);
+        // affect credit tier --> done off chain
+        emit ProposalProgress(proposalId, "Proposal is late for repayment, credit tier will be affected", block.timestamp);
+    }
+
+    // execute insurance repayment and conclude --> did not repay by the set deadline of 1 year + 2 months grace (admin only)
+    function execute_insurance(uint256 proposalId) public {
+        // get the proposal from proposal id
+        proposal storage p = proposalList[proposalId];
+
+        // check status is late
+        require(p.status == proposalStatus.late);
+        // check for loan deadline + 2 months met
+        require(block.timestamp >= p.allLoans[0].dueDate + insurancePeriod);
+
+        uint256 totalInsurance;
+
+        // calculate the total amount required for insurance payout
+        for(uint256 i = 0; i < p.allLoans.length; i++) {
+            loan storage indivLoan = p.allLoans[i];
+
+            // check insurance amount according to matrix and sum it up
+            uint256 coveragePercentage = calculate_loan_coverage(lenderContract.get_owner(indivLoan.lender));
+            uint256 insuranceAmount = indivLoan.amount * (coveragePercentage / 100);
+            totalInsurance += insuranceAmount;
+        }
+
+        require(commissionPoolBalance >= totalInsurance, "Platform does not have enough funds.");
+
+        // do insurance payouts as a whole
+        for(uint256 i = 0; i < p.allLoans.length; i++) {
+            loan storage indivLoan = p.allLoans[i];
+
+            // get the lender address and repay loan from borrower to lender
+            address lenderAddress = lenderContract.get_owner(indivLoan.lender);
+
+            // check insurance amount according to matrix
+            uint256 coveragePercentage = calculate_loan_coverage(lenderAddress);
+            uint256 insuranceAmount = indivLoan.amount * (coveragePercentage / 100);
+            
+            // transfer insurance amount from proposal market contract to lender
+            usdtContract.transfer(lenderAddress, insuranceAmount);
+            indivLoan.isRepaid = true;
+
+            emit InsuranceProcessed(lenderAddress, indivLoan.amount, insuranceAmount, coveragePercentage);
+        }
+
+        // set proposal status to be deafulted
+        p.status = proposalStatus.defaulted;
     }
 
     // todo
-    // execute insurance repayment and conclude --> did not repay by the set deadline of 1 year
-    // admin only
-    function execute_insurance() public {
-        // check status is awaiting repayment
-        // check for loan deadline + 2 months met
-        // check loan repaid is false
-        // do insurance payouts
-        // affect credit tier?
-        // status to concluded
+    // helper function for insurance compensation matrix
+    // need nft contract
+    function calculate_loan_coverage(address lender) public returns (uint256) {
+        //uint256 proportion = no. of nfts lender own / total supply
+
+        /* if (proportion >= 50) {
+            return 50;
+        } else if (proportion >= 40) {
+            return 40;
+        } else if (proportion >= 30) {
+            return 30;
+        } else if (proportion >= 20) {
+            return 20;
+        } */
+
+        return 10;
     }
 
     // get commission rate

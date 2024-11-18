@@ -188,4 +188,9 @@ contract BorrowerManagement {
     function get_borrower_proposal_list(uint256 borrowerId) public view validBorrower(borrowerId) returns (uint256[] memory) {
         return borrowerList[borrowerId].proposalList;
     }
+
+    // get tier of borrower
+    function get_borrower_tier(uint256 borrowerId) public view validBorrower(borrowerId) returns (creditTier) {
+        return borrowerList[borrowerId].tier;
+    }
 }

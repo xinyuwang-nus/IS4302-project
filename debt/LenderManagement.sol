@@ -55,9 +55,6 @@ contract LenderManagement {
             // Checks that lender provided a valid location
             require(keccak256(abi.encodePacked(location)) != keccak256(abi.encodePacked("")), "Please enter a non-empty location");
             
-            // Checks that lender provided a valid wallet address
-            require(walletAddress != address(0), "Please enter a valid wallet address");
-            
             // Storing hashed password instead of normal password for security purposes
             bytes32 hashed_password = keccak256(abi.encodePacked(password));
 
