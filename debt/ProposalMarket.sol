@@ -150,11 +150,13 @@ contract ProposalMarket {
     }
 
     // update proposal details and upload business documents off chain
-    function update_proposal(uint256 proposalId, string memory title, string memory description) public validProposalId(proposalId) {
+    function update_proposal(uint256 proposalId, string memory title, string memory description, address callerAddress) public validProposalId(proposalId) {
         // ensure proposal hasn't been deleted
         require(proposalList[proposalId].status != proposalStatus.deleted, "Proposal has been deleted and cannot be updated.");
 
         proposal memory p = proposalList[proposalId];
+
+        require(callerAddress == p.borrower, "You are not allowed to edit this proposal.");
 
         if (keccak256(abi.encodePacked(title)) != keccak256(abi.encodePacked(""))) {
             p.title = title;
@@ -320,8 +322,11 @@ contract ProposalMarket {
     }
 
     // deadline of proposal met and funding goal not reached --> allow choice between accept or decline funds
-    function proposal_deadline_met(uint256 proposalId, bool isAccepted) public validProposalId(proposalId) {
+    function proposal_deadline_met(uint256 proposalId, bool isAccepted, address callerAddress) public validProposalId(proposalId) {
         proposal storage p = proposalList[proposalId];
+
+        // check whether borrower is allowed to decide (borrower has to be creator of proposal)
+        require(callerAddress == p.borrower, "You are not allowed to decide on whether funds should be accepted or declined for this proposal.");
 
         // check status is open
         require(p.status == proposalStatus.open, "The proposal must be opened");
@@ -386,6 +391,9 @@ contract ProposalMarket {
     function repay_loan(uint256 proposalId, address borrowerAddress) public validProposalId(proposalId) {
         // get the proposal from proposal id
         proposal storage p = proposalList[proposalId];
+
+        // check if borrower is creator of proposal
+        require(borrowerAddress == p.borrower, "You are not allowed to repay loans as you are not the creator of this proposal.");
 
         // ensure that borrower has sufficient funds to process repayment
         uint256 totalRepaymentAmount = p.fundsRaised * (10000 + p.interest_rate) / 10000;

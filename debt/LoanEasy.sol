@@ -105,7 +105,7 @@ contract LoanEasy {
     }
 
     function update_proposal(uint256 proposalId, string memory title, string memory description) public {
-        proposalMarketContract.update_proposal(proposalId, title, description);
+        proposalMarketContract.update_proposal(proposalId, title, description, msg.sender);
     }
 
     function delete_proposal(uint256 proposalId) public {
@@ -121,7 +121,7 @@ contract LoanEasy {
     }
 
     function proposal_deadline_met(uint256 proposalId, bool isAccepted) public {
-        proposalMarketContract.proposal_deadline_met(proposalId, isAccepted);
+        proposalMarketContract.proposal_deadline_met(proposalId, isAccepted, msg.sender);
     }
 
     function repay_loan(uint256 proposalId) public {
