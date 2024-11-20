@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import "./BorrowerManagement.sol"; 
 import "./LenderManagement.sol";
 import "./Stablecoin/USDT.sol";
+import "./NFT/NFT.sol";
 
 contract ProposalMarket {
     uint256 private commissionRate = 500; // Solidity does not support floating point numbers so division by 10000 is used to get 0.5% commision
@@ -25,11 +26,14 @@ contract ProposalMarket {
     LenderManagement lenderContract;
     // USDT Contract
     USDT usdtContract;
+    // NFT Contract
+    NFT nftContract;
 
-    constructor(BorrowerManagement borrowerManagementAddress, LenderManagement lenderManagementAddress, USDT usdtAddress) {
+    constructor(BorrowerManagement borrowerManagementAddress, LenderManagement lenderManagementAddress, USDT usdtAddress, NFT nftAddress) {
         borrowerContract = borrowerManagementAddress;
         lenderContract = lenderManagementAddress;
         usdtContract = usdtAddress;
+        nftContract = nftAddress;
     }
 
     // status of a proposal
@@ -490,9 +494,11 @@ contract ProposalMarket {
     // helper function for insurance compensation matrix
     // need nft contract
     function calculate_loan_coverage(address lender) public returns (uint256) {
-        //uint256 proportion = no. of nfts lender own / total supply
+        uint256 numTokens = nftContract.balanceOf(lender);
+        uint256 totalSupply = nftContract.totalSupply();
+        uint256 proportion = numTokens / totalSupply * 100;
 
-        /* if (proportion >= 50) {
+        if (proportion >= 50) {
             return 50;
         } else if (proportion >= 40) {
             return 40;
@@ -500,7 +506,7 @@ contract ProposalMarket {
             return 30;
         } else if (proportion >= 20) {
             return 20;
-        } */
+        }
 
         return 10;
     }
