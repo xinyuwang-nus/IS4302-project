@@ -90,6 +90,16 @@ contract LenderManagement {
         return (l.name, l.email, l.phoneNumber, l.location, l.walletAddress, l.totalAmountLoaned, l.loanIdList);
     }
 
+    // Get Lender
+    function get_lender_address(uint256 lenderId) public validLender(lenderId) returns (address) {
+
+        lender memory l = lender_list[lenderId];
+
+        emit getLenderEvent(lenderId);
+
+        return (l.walletAddress);
+    }
+
     // Update Lender
     function update_lender(uint256 lenderId, string memory name, string memory email, string memory password,
         string memory phoneNumber, string memory location) public validLender(lenderId) {
