@@ -521,7 +521,6 @@ contract ProposalMarket {
         }
     }
 
-    // todo
     // helper function for insurance compensation matrix
     // need nft contract
     function calculate_loan_coverage(address lender) internal returns (uint256) {
