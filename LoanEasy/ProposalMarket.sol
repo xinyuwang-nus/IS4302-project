@@ -293,6 +293,8 @@ contract ProposalMarket {
         loan[] storage proposalLoans = p.allLoans;
         for (uint256 i = 0; i < proposalLoans.length; i++) {
             proposalLoans[i].dueDate = block.timestamp + loanPeriod;
+            address lenderAddress = lenderContract.get_lender_address(proposalLoans[i].lender);
+            nftContract.generateReward(lenderAddress);
         }
 
     }
