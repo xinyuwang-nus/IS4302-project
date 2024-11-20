@@ -16,6 +16,8 @@ contract BorrowerManagement {
         address walletAddress;
         uint256[] proposalList; // Storing the list of proposals which borrower has created
         creditTier tier;
+        uint256 avgDaysOverDue; // Average number of days overdue for borrower
+        uint256 numOfDefaultedLoans; // Number of loans that borrower has defaulted
     }
 
     // how to calculate credit tier
@@ -26,7 +28,7 @@ contract BorrowerManagement {
     }
 
     // keep track of borrower id
-    uint256 public borrowerNum = 0;
+    uint256 private borrowerNum = 0;
     // initialise empty array of proposals which borrower has created
     uint256[] emptyProposalList;
 
@@ -39,11 +41,13 @@ contract BorrowerManagement {
     // events for each CRUD function
     // show all attributes except password
     event created_borrower(uint256 borrowerId, string name, string email, string phoneNumber, string location, 
-        address walletAddress, uint256[] proposalList, creditTier tier);
+        address walletAddress, uint256[] proposalList, creditTier tier, uint256 avgDaysOverdue, uint256 numOfDefaultedLoans);
     event retrieved_borrower(uint256 borrowerId);
     event updated_borrower(uint256 borrowerId);
     event updated_proposal_list(uint256 borrowerId, uint256[] newProposalList);
     event deleted_borrower(uint256 borrowerId);
+    event updated_defaulted_loans(uint256 borrowerId, uint256 numOfLoans);
+    event updated_avg_days_overdue(uint256 borrowerId, uint256 avgDaysOverdue);
 
     // events for admin functionalities
     event tier_edited(uint256 borrowerId, creditTier oldTier, creditTier newTier);
@@ -81,7 +85,9 @@ contract BorrowerManagement {
             location,
             walletAddress,
             emptyProposalList,
-            creditTier.bronze
+            creditTier.bronze,
+            0,
+            0
         );
 
         // map the newly created borrower to its id in borrowerList
@@ -89,12 +95,13 @@ contract BorrowerManagement {
 
         // emit creation event
         emit created_borrower(newBorrower.userId, newBorrower.name, newBorrower.email, newBorrower.phoneNumber, 
-            newBorrower.location, newBorrower.walletAddress, newBorrower.proposalList, newBorrower.tier);
+            newBorrower.location, newBorrower.walletAddress, newBorrower.proposalList, newBorrower.tier, newBorrower.avgDaysOverDue,
+            newBorrower.numOfDefaultedLoans);
     }
 
     // get borrower from list
     function get_borrower(uint256 borrowerId) public validBorrower(borrowerId) returns 
-        (string memory, string memory, string memory, string memory, address, uint256[] memory, creditTier) {
+        (string memory, string memory, string memory, string memory, address, uint256[] memory, creditTier, uint256, uint256) {
         // retrieve borrower from list
         borrower memory b = borrowerList[borrowerId];
 
@@ -102,7 +109,7 @@ contract BorrowerManagement {
         emit retrieved_borrower(b.userId);
 
         // return borrower's details
-        return (b.name, b.email, b.phoneNumber, b.location, b.walletAddress, b.proposalList, b.tier);
+        return (b.name, b.email, b.phoneNumber, b.location, b.walletAddress, b.proposalList, b.tier, b.avgDaysOverDue, b.numOfDefaultedLoans);
     }
 
     // update borrower to new attributes
@@ -193,4 +200,34 @@ contract BorrowerManagement {
     function get_borrower_tier(uint256 borrowerId) public view validBorrower(borrowerId) returns (creditTier) {
         return borrowerList[borrowerId].tier;
     }
+
+    // update average number of days overdue
+    function update_avg_days_overdue(uint256 borrowerId, uint256 numOfDays) public validBorrower(borrowerId) {
+        borrower storage b = borrowerList[borrowerId];
+        b.avgDaysOverDue = numOfDays;
+        
+        // Emit event after updating average number of days overdue
+        emit updated_avg_days_overdue(borrowerId, numOfDays);
+    }
+
+    // get average number of days overdue
+    function get_avg_days_overdue(uint256 borrowerId) public view validBorrower(borrowerId) returns (uint256) {
+        return borrowerList[borrowerId].avgDaysOverDue;
+    }
+
+    // update number of defaulted loans
+    function update_defaulted_loans(uint256 borrowerId, uint256 numOfLoans) public validBorrower(borrowerId) {
+        borrower storage b = borrowerList[borrowerId];
+        b.numOfDefaultedLoans = numOfLoans;
+        
+        // Emit event after updating number of defaulted loans
+        emit updated_defaulted_loans(borrowerId, numOfLoans);
+    }
+
+    // get number of defaulted loans
+    function get_defaulted_loans(uint256 borrowerId) public view validBorrower(borrowerId) returns (uint256) {
+        return borrowerList[borrowerId].numOfDefaultedLoans;
+    }
+
+
 }
