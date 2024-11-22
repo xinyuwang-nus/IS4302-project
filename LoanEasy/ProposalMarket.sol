@@ -7,7 +7,7 @@ import "./Stablecoin/USDT.sol";
 import "./NFT/NFT.sol";
 
 contract ProposalMarket {
-    uint256 private commissionRate = 500; // Solidity does not support floating point numbers so division by 10000 is used to get 0.5% commision
+    uint256 private commissionRate = 500; // Solidity does not support floating point numbers so division by 10000 is used to get 5% commision
     uint256 private interestRate = 1221; // Fixed rate of 12.21% (Will be stored as 1221 and divide by 10000 when computing)
     uint256 private commissionPoolBalance = 0; // To add when implementing insurance, taken to comm
 
@@ -525,7 +525,7 @@ contract ProposalMarket {
 
     // helper function for insurance compensation matrix
     // need nft contract
-    function calculate_loan_coverage(address lender) internal returns (uint256) {
+    function calculate_loan_coverage(address lender) internal view returns (uint256) {
         uint256 numTokens = nftContract.balanceOf(lender);
         uint256 totalSupply = nftContract.totalSupply();
         uint256 proportion = numTokens / totalSupply * 100;
@@ -611,7 +611,7 @@ contract ProposalMarket {
         emit ProposalFundDetails(p.fundsRequired, p.fundsRaised, p.allLoans, p.goalReached, p.fundsDistributed, p.loanRepaid);
     }
 
-    // For testing purposes
+    // Only for testing purposes
     function change_proposal_timestamp(uint256 proposalId, uint256 numberOfDaysEarlier) public {
         proposal storage p = proposalList[proposalId];
         p.timestamp = p.timestamp - (numberOfDaysEarlier *  1 days);
@@ -619,6 +619,7 @@ contract ProposalMarket {
         p.endDate = p.endDate - (numberOfDaysEarlier *  1 days);
     }
 
+    // Only for testing purposes
     function change_proposal_loan_duedate(uint256 proposalId, uint256 numberOfDaysEarlier) public {
         proposal storage p = proposalList[proposalId];
         for (uint256 i = 0; i < p.allLoans.length; i++) {

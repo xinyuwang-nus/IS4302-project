@@ -14,11 +14,12 @@
     - [3. BorrowerManagement.sol](#3-borrowermanagementsol)
     - [4. LenderManagement.sol](#4-lendermanagementsol)
     - [5. ProposalMarket.sol](#5-proposalmarketsol)
-    - [6. LoanEasy.sol](#6-loaneasysol)
+    - [6. NFT.sol](#6-nftsol)
+    - [7. LoanEasy.sol](#7-loaneasysol)
   - [Usage](#usage)
     - [Deployment](#deployment)
-    - [Borrower Workflow](#borrower-workflow)
-    - [Lender Workflow](#lender-workflow)
+    - [Borrower Action Flow](#borrower-action-flow)
+    - [Lender Action Flow](#lender-action-flow)
   - [Technologies](#technologies)
   - [Future Enhancements](#future-enhancements)
 
@@ -51,7 +52,7 @@ The platform offers:
 
 ### Loan Features
 - **Loan lifecycle:**
-  - Open → Funded → Verification → Repayment → Concluded/Defaulted.
+  - Open → Funded → AcceptedLoan → Repayment → Concluded/Defaulted.
 - **Repayment**: Borrowers repay loans with interest to lenders.
 - **Default Management**:
   - Missed deadlines trigger penalties.
@@ -84,26 +85,35 @@ The platform offers:
 - Tracks proposal statuses:
   - open: *proposal is open for lending*
   - closed: *proposal deadline reached or funding goal reached*
-  - pendingVerification: *proposal waiting for verification by lenders before executing paid out*
+  - acceptedLoan: *loans in proposal have been accepted by the borrower*
   - awaitingRepayment: *proposal waiting for repayment (after paid out)*
   - late: *proposal repayment deadline reached and funds have not been repaid by borrower*
   - defaulted: *proposal repayment required insurance from platform*
   - concluded: *proposal repaid (borrower or insurance) and concluded*
   - deleted: *proposal has been deleted by borrower*
 
-### 6. LoanEasy.sol
+### 6. NFT.sol
+- Implements the ERC-721 standard.
+- Upon loan dispersement, the generateReward() function is triggered.
+- The number of NFTs for each user can be retrieved through the balanceOf() function.
+
+### 7. LoanEasy.sol
 - Central contract for management.
+
 
 ## Usage
 
 ### Deployment
-1. Deploy the **ERC20.sol** and **USDT.sol** to establish the token interface.
-2. Deploy **BorrowerManagement.sol** and **LenderManagement.sol** to handle profiles.
-3. Deploy **ProposalMarket.sol** for managing borrower proposals.
-4. Deploy **LoanEasy.sol** as the central management.
+1. In Remix, under advanced configurations, enable the Enable Optimization setting. This is needed for the smart contracts to compile.
+2. Compile the LoanEasy.sol contract and in the process, the remaining contracts will be compiled.
+3. Deploy NFT.sol, LenderManagement.sol, BorrowerManagement.sol, USDT.sol contracts.
+4. Deploy the ProposalMarket.sol contract with the address of 
+ NFT.sol, LenderManagement.sol, BorrowerManagement.sol, USDT.sol contracts being passed into the constructor of ProposalMarket
+5. Deploy the LoanEasy.sol contract with the address of ProposalMarket.sol, LenderManagement.sol and BorrowerManagement.sol
+contracts being passed into the constructor of LoanEasy
 
-### Borrower Workflow
-1. **Register** via the **BorrowerManagement.sol** contract.
+### Borrower Action Flow
+1. **Borrowers** can be added via the **LoanEasy.sol** contract.
 2. **Submit Loan Proposal**:
    - Specify loan amount, deadline, etc.
 3. **Manage Proposal**:
@@ -111,10 +121,10 @@ The platform offers:
 4. **Repay Loans**:
    - Repay borrowed amounts with interest.
 
-### Lender Workflow
-1. **Register** via the **LenderManagement.sol** contract.
+### Lender Action Flow
+1. **Lenders** can be added via the **LoanEasy.sol** contract.
 2. **Evaluate Proposals**:
-   - Browse proposals using **ProposalMarket.sol**.
+   - Browse proposals via the **LoanEasy.sol** contract which calls **ProposalMarket.sol**
 3. **Fund Proposals**:
    - Partially or fully fund selected proposals.
    - Track funded loans and expected repayments.
@@ -123,10 +133,10 @@ The platform offers:
 
 - **Ethereum Blockchain**: Platform for smart contracts.
 - **Solidity**: Smart contract programming language.
-- **ERC-20 Standard**: For tokenization.
+- **ERC-20 Standard**: For creating USDT fungible tokens.
+- **ERC-721 Standard**: For creating the NFTs.
 
 
 ## Future Enhancements
 
-- NFT Integration
 - Secondary Market

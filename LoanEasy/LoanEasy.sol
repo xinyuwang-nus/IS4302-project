@@ -58,6 +58,10 @@ contract LoanEasy {
         borrowerContract.update_borrower_tier(borrowerId, tierNum);
     }
 
+    function get_borrower_tier(uint256 borrowerId) public view returns (BorrowerManagement.creditTier) {
+        return borrowerContract.get_borrower_tier(borrowerId);
+    }
+
     function delete_borrower(uint256 borrowerId) public adminOnly() {
         borrowerContract.delete_borrower(borrowerId);
     }
@@ -159,10 +163,6 @@ contract LoanEasy {
     function repayment_deadline_met(uint256 proposalId) public adminOnly() {
         proposalMarketContract.repayment_deadline_met(proposalId);
     }
-    
-    // function execute_insurance(uint256 proposalId) public adminOnly() {
-    //     proposalMarketContract.execute_insurance(proposalId);
-    // }
     
     function get_commission() public view returns (uint256) {
         return proposalMarketContract.get_commision();
